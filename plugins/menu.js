@@ -72,6 +72,7 @@ cmd(
     👻 .nsfwimg <search tag if you want>
     👻 .xhamster <xhamster url>
     👻 .pornhub <pornhub url>
+    👻 .pornclip
     
 | _*DOWNLOAD COMMANDS*_ |
     👻 .mega <mrga.nz url>
