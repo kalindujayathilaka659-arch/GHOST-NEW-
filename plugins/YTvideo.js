@@ -4,6 +4,11 @@ const ytdlp = require("yt-dlp-exec");
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
+const ffmpeg = require("fluent-ffmpeg");
+const ffmpegInstaller = require("@ffmpeg-installer/ffmpeg");
+
+// Set FFmpeg binary path for yt-dlp merging
+ffmpeg.setFfmpegPath(ffmpegInstaller.path);
 
 const cookiesPath = path.resolve(process.cwd(), "cookies/youtube_cookies.txt");
 
@@ -26,16 +31,17 @@ cmd(
     try {
       let url = q;
 
+      // If search term instead of URL → search it
       if (!q.includes("youtube.com") && !q.includes("youtu.be")) {
         const search = await yts(q);
         if (!search.videos.length) return reply("❌ No results found.");
         url = search.videos[0].url;
       }
 
-      // Generate temp output file path
+      // Temp output file path
       const outputPath = path.join(os.tmpdir(), `yt_${Date.now()}.mp4`);
 
-      // Download & merge best video <=720p + best audio
+      // Download + merge video up to 720p
       await ytdlp(url, {
         format: "bestvideo[height<=720]+bestaudio/best[height<=720]",
         mergeOutputFormat: "mp4",
@@ -48,9 +54,11 @@ cmd(
           "referer:youtube.com",
           "user-agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
         ],
+        // FFmpeg path added
+        ffmpegLocation: ffmpegInstaller.path,
       });
 
-      // Fetch video info for metadata
+      // Get video metadata
       const info = await ytdlp(url, {
         dumpSingleJson: true,
         noCheckCertificates: true,
@@ -80,14 +88,14 @@ cmd(
 📁 *Size:* ${sizeMB}
 🔗 ${url}`;
 
-      // Send thumbnail + metadata
+      // Thumbnail with details
       await robin.sendMessage(
         from,
         { image: { url: info.thumbnail }, caption: metadata },
         { quoted: mek }
       );
 
-      // Send video file
+      // Send video
       await robin.sendMessage(
         from,
         {
@@ -98,18 +106,20 @@ cmd(
         { quoted: mek }
       );
 
-      // Cleanup temp file
+      // Remove temp file
       fs.unlinkSync(outputPath);
     } catch (error) {
       console.error("yt-dlp error:", error);
+
       if (
         error.stderr?.includes("Sign in to confirm") ||
         error.message?.includes("Sign in to confirm")
       ) {
         return reply(
-          "⚠️ This video requires YouTube login. Please make sure your `youtube_cookies.txt` file is valid and up to date."
+          "⚠️ This video requires YouTube login. Update your `youtube_cookies.txt` file."
         );
       }
+
       reply(`❌ Error: ${error.message || "Failed to download video."}`);
     }
   }
