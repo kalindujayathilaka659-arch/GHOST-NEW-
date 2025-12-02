@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@bochilteam/scraper": "^5.0.1",
-    "@whiskeysockets/baileys": "7.0.0-rc.6",
+    "@whiskeysockets/baileys": "^6.7.20",
     "fluent-ffmpeg": "^2.1.2",
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
     "@xaviabot/fb-downloader": "^1.0.14",
