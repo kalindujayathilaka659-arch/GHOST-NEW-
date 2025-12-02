@@ -13,7 +13,7 @@ function convertToBool(text, fault = "true") {
 }
 
 module.exports = {
-  SESSION_ID: process.env.SESSION_ID || "NcRHjRLb#oneB6pZ346fC9cYbWY7v7AvWB1E_mshMdXHHSO3tBcU",
+  SESSION_ID: process.env.SESSION_ID || "cZ4ygCyY#hbYEpd4eCAH7WzTUSbVMxXHNwo7gUt1mjewr8g-TvFw",
 
   MONGODB:
     process.env.MONGODB ||
