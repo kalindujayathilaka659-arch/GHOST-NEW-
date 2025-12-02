@@ -15,9 +15,7 @@ function convertToBool(text, fault = "true") {
 module.exports = {
   SESSION_ID: process.env.SESSION_ID || "cZ4ygCyY#hbYEpd4eCAH7WzTUSbVMxXHNwo7gUt1mjewr8g-TvFw",
 
-  MONGODB:
-    process.env.MONGODB ||
-    "mongodb://mongo:EpwWYUPNichDpzFPjvRHNSVfxbEQRMDx@yamabiko.proxy.rlwy.net:22673",
+  MONGODB: process.env.MONGODB || "mongodb://mongo:LxUYYgUicUbyasODhinZfhHLqnaBMtAQ@yamabiko.proxy.rlwy.net:46053",
 
   OWNER_NUM: (process.env.OWNER_NUM || "94701981053").split(","),
 
