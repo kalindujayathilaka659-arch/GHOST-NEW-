@@ -11,7 +11,7 @@ cmd(
   {
     pattern: "pornclip",
     react: "🔞",
-    desc: "Send RedGifs clip (480p, small size, mobile safe)",
+    desc: "Send RedGifs clip (540p, better accuracy, mobile safe)",
     category: "nsfw",
     filename: __filename,
   },
@@ -32,28 +32,42 @@ cmd(
 
       // 🔍 SEARCH
       const search = await axios.get(
-        `https://api.redgifs.com/v2/gifs/search?search_text=${encodeURIComponent(rawTag)}&count=80`,
-        { headers: { Authorization: `Bearer ${token}` }, timeout: 20000 }
+        `https://api.redgifs.com/v2/gifs/search?search_text=${encodeURIComponent(rawTag)}&count=100`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+          timeout: 20000,
+        }
       );
 
       const gifs = search.data?.gifs || [];
       if (!gifs.length) return reply("❌ No results found.");
 
-      // 🎯 ACCURACY FILTER
-      const accurate = gifs.filter(g => {
-        const title = (g.title || "").toLowerCase();
-        const tags = (g.tags || []).join(" ").toLowerCase();
-        return keywords.every(k => title.includes(k) || tags.includes(k));
-      });
+      // 🎯 BETTER ACCURACY FILTER (NO `_`)
+      const accurate = gifs
+        .map(g => {
+          const title = (g.title || "").toLowerCase();
+          const tags = (g.tags || []).join(" ").toLowerCase();
+
+          let score = 0;
+          for (const k of keywords) {
+            if (tags.includes(k)) score += 3;
+            else if (title.includes(k)) score += 2;
+          }
+
+          return { g, score };
+        })
+        .filter(x => x.score >= keywords.length * 2)
+        .sort((a, b) => b.score - a.score)
+        .map(x => x.g);
 
       if (!accurate.length)
-        return reply("❌ No closely matched clips.");
+        return reply("❌ No closely matched clips found.");
 
       const selected =
         accurate[Math.floor(Math.random() * accurate.length)];
 
-      // 🎥 SOURCE (prefer HD → scaled down)
-      const sourceUrl = selected.urls?.hd || selected.urls?.sd;
+      // 🎥 SOURCE
+      const sourceUrl = selected.urls?.sd || selected.urls?.hd;
       if (!sourceUrl) return reply("❌ No playable video found.");
 
       // 📁 TEMP
@@ -76,23 +90,19 @@ cmd(
         stream.on("error", reject);
       });
 
-      // 🎞️ RE-ENCODE → 480p + SMALL SIZE
+      // 🎞️ RE-ENCODE → 540p
       await new Promise((resolve, reject) => {
         ffmpeg(rawPath)
           .outputOptions([
             "-movflags +faststart",
-            "-vf scale='if(gt(ih,480),-2,iw)':'if(gt(ih,480),480,ih)'",
+            "-vf scale='if(gt(ih,540),-2,iw)':'if(gt(ih,540),540,ih)'",
             "-pix_fmt yuv420p",
-
-            // 🔥 SIZE CONTROL
-            "-b:v 900k",
-            "-maxrate 900k",
-            "-bufsize 1800k",
-
+            "-b:v 1200k",
+            "-maxrate 1200k",
+            "-bufsize 2400k",
             "-profile:v baseline",
-            "-level 3.0",
-
-            "-b:a 128k", // 🔊 AUDIO FIXED
+            "-level 3.1",
+            "-b:a 128k",
             "-shortest",
           ])
           .videoCodec("libx264")
@@ -103,7 +113,7 @@ cmd(
           .on("error", reject);
       });
 
-      // 📤 SEND (MOBILE SAFE)
+      // 📤 SEND
       await robin.sendMessage(
         from,
         {
