@@ -11,7 +11,7 @@ cmd(
   {
     pattern: "pornclip",
     react: "🔞",
-    desc: "Send RedGifs clip (mobile safe)",
+    desc: "Send RedGifs clip (max quality, mobile safe)",
     category: "nsfw",
     filename: __filename,
   },
@@ -22,55 +22,75 @@ cmd(
 
       await reply(`🔍 Searching for: *${rawTag}*`);
 
-      // 🔑 Auth
-      const auth = await axios.get("https://api.redgifs.com/v2/auth/temporary");
+      // 🔑 AUTH
+      const auth = await axios.get(
+        "https://api.redgifs.com/v2/auth/temporary",
+        { timeout: 15000 }
+      );
       const token = auth.data?.token;
-      if (!token) return reply("❌ Auth failed");
+      if (!token) return reply("❌ RedGifs auth failed.");
 
-      // 🔍 Search
+      // 🔍 SEARCH
       const search = await axios.get(
         `https://api.redgifs.com/v2/gifs/search?search_text=${encodeURIComponent(rawTag)}&count=80`,
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: { Authorization: `Bearer ${token}` }, timeout: 20000 }
       );
 
       const gifs = search.data?.gifs || [];
-      if (!gifs.length) return reply("❌ No results");
+      if (!gifs.length) return reply("❌ No results found.");
 
+      // 🎯 ACCURACY FILTER
       const accurate = gifs.filter(g => {
-        const t = (g.title || "").toLowerCase();
-        const tg = (g.tags || []).join(" ").toLowerCase();
-        return keywords.every(k => t.includes(k) || tg.includes(k));
+        const title = (g.title || "").toLowerCase();
+        const tags = (g.tags || []).join(" ").toLowerCase();
+        return keywords.every(k => title.includes(k) || tags.includes(k));
       });
 
-      if (!accurate.length) return reply("❌ No close match");
+      if (!accurate.length)
+        return reply("❌ No closely matched clips.");
 
-      const selected = accurate[Math.floor(Math.random() * accurate.length)];
-      const sourceUrl = selected.urls?.sd || selected.urls?.hd;
-      if (!sourceUrl) return reply("❌ No video URL");
+      const selected =
+        accurate[Math.floor(Math.random() * accurate.length)];
 
+      // 🏆 MAX QUALITY SOURCE
+      const sourceUrl =
+        selected.urls?.hd || selected.urls?.sd;
+
+      if (!sourceUrl)
+        return reply("❌ No playable video found.");
+
+      // 📁 TEMP
       const tempDir = path.join(process.cwd(), "temp");
       if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
 
       const rawPath = path.join(tempDir, `rg_raw_${Date.now()}.mp4`);
-      const fixedPath = path.join(tempDir, `rg_fixed_${Date.now()}.mp4`);
+      const fixedPath = path.join(tempDir, `rg_final_${Date.now()}.mp4`);
 
-      // 📥 Download
-      const res = await axios.get(sourceUrl, { responseType: "stream" });
-      await new Promise((resolve, reject) => {
-        const s = fs.createWriteStream(rawPath);
-        res.data.pipe(s);
-        s.on("finish", resolve);
-        s.on("error", reject);
+      // 📥 DOWNLOAD
+      const videoRes = await axios.get(sourceUrl, {
+        responseType: "stream",
+        timeout: 30000,
       });
 
-      // 🎞️ RE-ENCODE FOR WHATSAPP MOBILE
+      await new Promise((resolve, reject) => {
+        const stream = fs.createWriteStream(rawPath);
+        videoRes.data.pipe(stream);
+        stream.on("finish", resolve);
+        stream.on("error", reject);
+      });
+
+      // 🎞️ RE-ENCODE (MAX QUALITY + MOBILE SAFE)
       await new Promise((resolve, reject) => {
         ffmpeg(rawPath)
           .outputOptions([
             "-movflags +faststart",
+            "-vf scale=trunc(iw/2)*2:trunc(ih/2)*2",
             "-pix_fmt yuv420p",
+            "-crf 18",           // 🔥 HIGH QUALITY
+            "-preset slow",      // 🔥 BETTER COMPRESSION
             "-profile:v baseline",
             "-level 3.0",
+            "-shortest",
           ])
           .videoCodec("libx264")
           .audioCodec("aac")
@@ -81,7 +101,7 @@ cmd(
           .on("error", reject);
       });
 
-      // 📤 SEND (MOBILE SAFE)
+      // 📤 SEND (WORKS ON MOBILE)
       await robin.sendMessage(
         from,
         {
@@ -96,9 +116,9 @@ cmd(
       fs.unlinkSync(rawPath);
       fs.unlinkSync(fixedPath);
 
-    } catch (e) {
-      console.error("pornclip error:", e.message);
-      reply("❌ Failed to send clip");
+    } catch (err) {
+      console.error("pornclip error:", err.message);
+      reply("❌ Failed to send clip.");
     }
   }
 );
