@@ -11,7 +11,11 @@ cmd(
   },
   async (robin, mek, m, { q, from, reply }) => {
     try {
-      const tag = q ? q.trim().toLowerCase() : "futanari";
+      // 🔥 Auto convert spaces to underscores
+      const tag = q
+        ? q.trim().toLowerCase().replace(/\s+/g, "_")
+        : "futanari";
+
       const limit = 30;
 
       const apiUrl =
@@ -51,7 +55,7 @@ cmd(
           {
             image: { url: post.file_url },
             caption: `🍑 *NSFW Image*
-🔍 *Tag:* ${tag || oneTag}
+🔍 *Tag:* ${tag}
 🔞 *Rating:* ${post.rating.toUpperCase()}
 🆔 *ID:* ${post.id}`,
           },
