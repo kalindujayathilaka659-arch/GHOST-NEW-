@@ -104,6 +104,7 @@ cmd(
               `📅 *Uploaded:* ${uploadDate}\n` +
               `👁 *Views:* ${views}\n` +
               `🎞 *Quality:* ${quality}p\n\n` +
+              `📦 *Size:* ${size}\n` +
               `⏳ Please wait...`,
           },
           { quoted: mek }
@@ -153,7 +154,6 @@ cmd(
               `🎥 *XHamster Video*\n\n` +
               `📝 *Title:* ${title}\n` +
               `👤 *Channel:* ${channel}\n` +
-              `📅 *Uploaded:* ${uploadDate}\n` +
               `👁 *Views:* ${views}\n` +
               `📦 *Size:* ${size}\n` +
               `🎞 *Quality:* ${quality}p\n` +
