@@ -1,98 +1,101 @@
 const { cmd } = require("../command");
 const axios = require("axios");
+const fs = require("fs");
+const path = require("path");
+const os = require("os");
 
 cmd(
   {
     pattern: "pornclip",
     react: "🔞",
-    desc: "Send a short clip (RedGifs, accurate search)",
+    desc: "Send a short clip (RedGifs, mobile safe)",
     category: "nsfw",
     filename: __filename,
   },
   async (robin, mek, m, { q, reply, from }) => {
     try {
       const rawTag = q ? q.trim().toLowerCase() : "ass";
-      const keywords = rawTag.split(/\s+/); // 🔍 keyword list
+      const keywords = rawTag.split(/\s+/);
 
-      await reply(`🔍 Searching RedGifs for: *${rawTag}*`);
+      await reply(`🔍 Searching for: *${rawTag}*`);
 
       // 🔑 Auth
       const authRes = await axios.get(
         "https://api.redgifs.com/v2/auth/temporary",
-        {
-          headers: {
-            "User-Agent": "Mozilla/5.0",
-            "Accept": "application/json",
-          },
-          timeout: 15000,
-        }
+        { timeout: 15000 }
       );
 
       const token = authRes.data?.token;
-      if (!token) return reply("❌ RedGifs auth failed.");
+      if (!token) return reply("❌ Auth failed.");
 
-      // 🔍 Search (keep original spacing for accuracy)
+      // 🔍 Search
       const searchRes = await axios.get(
-        `https://api.redgifs.com/v2/gifs/search?search_text=${encodeURIComponent(
-          rawTag
-        )}&count=80`,
+        `https://api.redgifs.com/v2/gifs/search?search_text=${encodeURIComponent(rawTag)}&count=80`,
         {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "User-Agent": "Mozilla/5.0",
-            "Accept": "application/json",
-          },
+          headers: { Authorization: `Bearer ${token}` },
           timeout: 20000,
         }
       );
 
-      const gifs = searchRes.data?.gifs;
-      if (!Array.isArray(gifs) || gifs.length === 0) {
-        return reply(`❌ No results for: *${rawTag}*`);
-      }
+      const gifs = searchRes.data?.gifs || [];
+      if (!gifs.length) return reply("❌ No results.");
 
-      // 🎯 ACCURACY FILTER
+      // 🎯 Accurate filter
       const accurate = gifs.filter(g => {
         const title = (g.title || "").toLowerCase();
         const tags = (g.tags || []).join(" ").toLowerCase();
-
-        // every keyword must appear
-        return keywords.every(
-          k => title.includes(k) || tags.includes(k)
-        );
+        return keywords.every(k => title.includes(k) || tags.includes(k));
       });
 
       if (!accurate.length) {
-        return reply(`❌ No closely matched clips for: *${rawTag}*`);
+        return reply("❌ No close match found.");
       }
 
-      // 🎲 Pick random accurate clip
       const selected =
         accurate[Math.floor(Math.random() * accurate.length)];
 
       const mediaUrl =
-        selected.urls?.sd ||
-        selected.urls?.hd ||
-        selected.urls?.gif;
+        selected.urls?.sd || selected.urls?.hd;
 
-      if (!mediaUrl) return reply("❌ No playable clip found.");
+      if (!mediaUrl) return reply("❌ No playable clip.");
 
-      const pageUrl = `https://www.redgifs.com/watch/${selected.id}`;
+      // 📥 Download to temp
+      const tempDir = path.join(process.cwd(), "temp");
+      if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
 
-      // 📤 Send as NORMAL video (no gif playback)
+      const filePath = path.join(
+        tempDir,
+        `redgifs_${Date.now()}.mp4`
+      );
+
+      const videoRes = await axios.get(mediaUrl, {
+        responseType: "stream",
+        timeout: 30000,
+      });
+
+      await new Promise((resolve, reject) => {
+        const stream = fs.createWriteStream(filePath);
+        videoRes.data.pipe(stream);
+        stream.on("finish", resolve);
+        stream.on("error", reject);
+      });
+
+      // 📤 Send LOCAL FILE (mobile-safe)
       await robin.sendMessage(
         from,
         {
-          video: { url: mediaUrl },
-          caption: `🎞️ *${selected.title || rawTag}*\n🔗 ${pageUrl}`,
+          video: fs.readFileSync(filePath),
           mimetype: "video/mp4",
-          gifPlayback: false, // ❌ GIF playback OFF
+          caption: `🎞️ *${selected.title || rawTag}*`,
+          gifPlayback: false,
         },
         { quoted: mek }
       );
 
+      fs.unlinkSync(filePath);
+
     } catch (err) {
-      console.error("RedGifs error:", err.response?.status, err.message);
+      console.error("RedGifs error:", err.message);
       reply("❌ Failed to fetch clip.");
     }
   }
