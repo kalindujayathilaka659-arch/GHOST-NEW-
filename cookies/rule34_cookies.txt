@@ -1,7 +1,0 @@
-# Netscape HTTP Cookie File
-# https://curl.haxx.se/rfc/cookie_spec.html
-# This is a generated file! Do not edit.
-
-rule34.xxx	FALSE	/	FALSE	0	gdpr-consent	1
-rule34.xxx	FALSE	/	FALSE	0	gdpr	1
-.rule34.xxx	TRUE	/	TRUE	1797250847	cf_clearance	Dy1U2bU35sH2lapG0xE7NxYvQQMeSJON6NV1ZsHEJYc-1765714846-1.2.1.1-MIWXsZtXwbXEKQNAnlXas5Nh4VdSBJ9piDbpHyvSrIw.GfqFVwv9ZF0OL9A68BgTXMOPZvlgiU1bQszWrhP6ZCEsSl6iyC.KxG0J7YNCYTvUfQY30C8ljJEht50BBxJCeWID.Izz53FqIzZnoJHt5CY3ZvnS70EAxxCXSDF1kcN9i7nAkSO0UvCPKeihwlo94MaULcB566xOG088HQxZgeHsA25jxBTNmgkAvlJetws
