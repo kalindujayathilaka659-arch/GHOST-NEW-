@@ -11,7 +11,7 @@ cmd(
   {
     pattern: "pornclip",
     react: "🔞",
-    desc: "Send RedGifs clip (720p, original size, mobile safe)",
+    desc: "Send RedGifs clip (480p, small size, mobile safe)",
     category: "nsfw",
     filename: __filename,
   },
@@ -33,10 +33,7 @@ cmd(
       // 🔍 SEARCH
       const search = await axios.get(
         `https://api.redgifs.com/v2/gifs/search?search_text=${encodeURIComponent(rawTag)}&count=80`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-          timeout: 20000,
-        }
+        { headers: { Authorization: `Bearer ${token}` }, timeout: 20000 }
       );
 
       const gifs = search.data?.gifs || [];
@@ -55,7 +52,7 @@ cmd(
       const selected =
         accurate[Math.floor(Math.random() * accurate.length)];
 
-      // 🏆 BEST SOURCE (RedGifs native)
+      // 🎥 SOURCE (prefer HD → scaled down)
       const sourceUrl = selected.urls?.hd || selected.urls?.sd;
       if (!sourceUrl) return reply("❌ No playable video found.");
 
@@ -64,68 +61,53 @@ cmd(
       if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
 
       const rawPath = path.join(tempDir, `rg_raw_${Date.now()}.mp4`);
-      const finalPath = path.join(tempDir, `rg_final_${Date.now()}.mp4`);
+      const fixedPath = path.join(tempDir, `rg_final_${Date.now()}.mp4`);
 
       // 📥 DOWNLOAD
-      const res = await axios.get(sourceUrl, {
+      const videoRes = await axios.get(sourceUrl, {
         responseType: "stream",
         timeout: 30000,
       });
 
       await new Promise((resolve, reject) => {
         const stream = fs.createWriteStream(rawPath);
-        res.data.pipe(stream);
+        videoRes.data.pipe(stream);
         stream.on("finish", resolve);
         stream.on("error", reject);
       });
 
-      // 🎯 STEP 1: TRY COPY (keeps original size)
-      let needEncode = false;
+      // 🎞️ RE-ENCODE → 480p + SMALL SIZE
+      await new Promise((resolve, reject) => {
+        ffmpeg(rawPath)
+          .outputOptions([
+            "-movflags +faststart",
+            "-vf scale='if(gt(ih,480),-2,iw)':'if(gt(ih,480),480,ih)'",
+            "-pix_fmt yuv420p",
 
-      try {
-        await new Promise((resolve, reject) => {
-          ffmpeg(rawPath)
-            .outputOptions([
-              "-c:v copy",
-              "-c:a copy",
-              "-movflags +faststart",
-            ])
-            .save(finalPath)
-            .on("end", resolve)
-            .on("error", reject);
-        });
-      } catch {
-        needEncode = true;
-      }
+            // 🔥 SIZE CONTROL
+            "-b:v 900k",
+            "-maxrate 900k",
+            "-bufsize 1800k",
 
-      // 🎞️ STEP 2: FALLBACK → 720p SAFE ENCODE
-      if (needEncode) {
-        await new Promise((resolve, reject) => {
-          ffmpeg(rawPath)
-            .outputOptions([
-              "-movflags +faststart",
-              // ⬇️ downscale ONLY if bigger than 720p
-              "-vf scale='if(gt(ih,720),-2,iw)':'if(gt(ih,720),720,ih)'",
-              "-pix_fmt yuv420p",
-              "-crf 23",        // 🔥 RedGifs-like quality
-              "-preset medium",
-              "-b:a 128k",      // 🔊 fixed audio
-              "-shortest",
-            ])
-            .videoCodec("libx264")
-            .audioCodec("aac")
-            .format("mp4")
-            .save(finalPath)
-            .on("end", resolve)
-            .on("error", reject);
-        });
-      }
+            "-profile:v baseline",
+            "-level 3.0",
 
-      // 📤 SEND (ANDROID + IOS SAFE)
+            "-b:a 128k", // 🔊 AUDIO FIXED
+            "-shortest",
+          ])
+          .videoCodec("libx264")
+          .audioCodec("aac")
+          .format("mp4")
+          .save(fixedPath)
+          .on("end", resolve)
+          .on("error", reject);
+      });
+
+      // 📤 SEND (MOBILE SAFE)
       await robin.sendMessage(
         from,
         {
-          video: fs.readFileSync(finalPath),
+          video: fs.readFileSync(fixedPath),
           mimetype: "video/mp4",
           caption: `🎞️ *${selected.title || rawTag}*`,
           gifPlayback: false,
@@ -134,7 +116,7 @@ cmd(
       );
 
       fs.unlinkSync(rawPath);
-      fs.unlinkSync(finalPath);
+      fs.unlinkSync(fixedPath);
 
     } catch (err) {
       console.error("pornclip error:", err.message);
