@@ -1,88 +1,66 @@
 const { cmd } = require("../command");
 const axios = require("axios");
-const xml2js = require("xml2js");
-const fs = require("fs");
-const path = require("path");
-
-const cookiesPath = path.resolve(process.cwd(), "cookies/rule34_cookies.txt");
 
 cmd(
   {
     pattern: "nsfwimg",
     react: "🍑",
-    desc: "Get 3 NSFW images by keyword or random (rule34.xxx)",
+    desc: "Get 3 NSFW images (Danbooru – stable)",
     category: "nsfw",
     filename: __filename,
   },
   async (robin, mek, m, { q, from, reply }) => {
     try {
-      // 🔒 Optional: restrict to groups / owner
-      // if (!m.isGroup) return reply("❌ This command works in groups only.");
-
-      const tag = q?.trim().replace(/\s+/g, "_") || "";
-      const limit = 100;
-
-      // 🍪 Load cookies
-      const cookies = fs.existsSync(cookiesPath)
-        ? fs.readFileSync(cookiesPath, "utf-8").trim()
-        : "";
+      const tag = q ? q.trim().toLowerCase() : "futanari";
+      const limit = 30;
 
       const apiUrl =
-        `https://rule34.xxx/index.php?page=dapi&s=post&q=index&limit=${limit}` +
-        (tag ? `&tags=${encodeURIComponent(tag)}` : "");
+        "https://danbooru.donmai.us/posts.json" +
+        `?limit=${limit}&tags=${encodeURIComponent(
+          `${tag} rating:explicit`
+        )}`;
 
       const res = await axios.get(apiUrl, {
         headers: {
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-          Referer: "https://rule34.xxx/",
-          Cookie: cookies,
+          // 🔥 REQUIRED by Danbooru
+          "User-Agent": "MyBot/1.0 (contact: youremail@example.com)",
+          "Accept": "application/json",
         },
-        timeout: 15000,
+        timeout: 20000,
       });
 
-      // 🧠 Parse XML
-      const parsed = await xml2js.parseStringPromise(res.data);
-      const posts = parsed?.posts?.post;
-
-      if (!posts || posts.length === 0) {
-        return reply(`❌ No images found for: ${q || "random"}`);
+      if (!Array.isArray(res.data)) {
+        return reply("❌ Danbooru blocked the request.");
       }
 
-      // 🎯 Pick 3 random images
-      const selected = [];
-      const used = new Set();
+      const validPosts = res.data.filter(
+        p => p.file_url && p.file_url.startsWith("http")
+      );
 
-      while (selected.length < 3 && selected.length < posts.length) {
-        const i = Math.floor(Math.random() * posts.length);
-        if (!used.has(i)) {
-          used.add(i);
-          selected.push(posts[i].$);
-        }
+      if (validPosts.length === 0) {
+        return reply(`❌ No images found for: ${q}`);
       }
 
-      // 📤 Send images
+      const selected = validPosts
+        .sort(() => 0.5 - Math.random())
+        .slice(0, 3);
+
       for (const post of selected) {
-        const imageUrl = post.file_url.startsWith("http")
-          ? post.file_url
-          : `https://rule34.xxx/${post.file_url}`;
-
-        const caption = `🍑 *NSFW Image*
-🔍 *Tags:* ${post.tags || "Unknown"}
-🔞 *Rating:* ${post.rating?.toUpperCase() || "N/A"}
-🆔 *ID:* ${post.id}`;
-
         await robin.sendMessage(
           from,
           {
-            image: { url: imageUrl },
-            caption,
+            image: { url: post.file_url },
+            caption: `🍑 *NSFW Image*
+🔍 *Tag:* ${tag || oneTag}
+🔞 *Rating:* ${post.rating.toUpperCase()}
+🆔 *ID:* ${post.id}`,
           },
           { quoted: mek }
         );
       }
     } catch (err) {
-      console.error("Rule34 error:", err.message);
-      reply("❌ Failed to fetch images. Try another keyword.");
+      console.error("Danbooru error:", err.response?.status, err.message);
+      reply("❌ Failed to fetch images (Danbooru blocked or rate-limited).");
     }
   }
 );
